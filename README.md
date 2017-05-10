@@ -1,2 +1,3 @@
 # ubi_tornado
-ubi using tornado
+# This project is about ubi, and using tornado.
+#
