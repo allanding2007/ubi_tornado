@@ -1,0 +1,1 @@
+CREATE TABLE "user" ("id" SERIAL PRIMARY KEY, "name" VARCHAR(80) UNIQUE, "pass_word" VARCHAR(16), "email" VARCHAR(80) UNIQUE, "is_activated" BOOLEAN DEFAULT TRUE, "phone" VARCHAR(15) UNIQUE, "join_date" TIMESTAMP);
