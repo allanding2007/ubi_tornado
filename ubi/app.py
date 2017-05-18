@@ -25,12 +25,12 @@ class BaseHandler(tornado.web.RequestHandler):
         self.session = queries.TornadoSession(config.POSTGRES_URI)
 
 
-class UserHandler(BaseHandler):
+class RegisterHandler(BaseHandler):
     """
     """
     @gen.coroutine
     def get(self):
-        result = yield self.session.query('SELECT id,name FROM "user"')
+        result = yield self.session.query('SELECT id,user_name FROM "user" LIMIT 1')
         self.write({"content": result.items(),
                     "code": "1"})
         self.finish()
@@ -40,41 +40,100 @@ class UserHandler(BaseHandler):
     def post(self):
         print self.request.body
         json_data = json.loads(self.request.body)
-        user_name = json_data.get("user_name", None)
         phone = json_data.get("phone", None)
-        is_activated = json_data.get("is_activated", None)
-        if not phone or not is_activated:
+        code = json_data.get("code", None)
+        if not phone or not code:
             self.set_status(200)
             self.finish({
                 "code": "0",
-                "msg": "Need phone or is_activated."
+                "msg": "Need phone or code."
             })
+            return
 
-        is_activated = True if is_activated == "1" else False
-        if not user_name:
-            user_name = phone
+        verify_code = yield self.session.query("""SELECT id, code FROM "verifycode" WHERE
+                                                phone='{0}' ORDER BY id DESC LIMIT 1"""\
+                                               .format(phone))
+        if not verify_code:
+            self.set_status(200)
+            self.finish({
+                "code": "0",
+                "msg": "NO  code."
+            })
+            verify_code.free()
+            return
+
+        if verify_code[0]['code'] != code:
+            self.set_status(200)
+            self.finish({
+                "code": "0",
+                "msg": "Phone and Code not match."
+            })
+            verify_code.free()
+            return
+
+        exist_user = yield self.session.query("""SELECT id FROM "user" WHERE phone='{0}'
+                                                LIMIT 1""".format(phone))
         time_stamp = datetime.datetime.utcnow()
-        try:
-            result = yield self.session.query("""INSERT INTO "user" (user_name, phone, join_date, \
-                                              is_activated) VALUES ('{0}', '{1}', '{2}', '{3}')"""\
-                                              .format(user_name, phone, time_stamp, is_activated))
+        if not exist_user:
+            try:
+                result = yield self.session.query("""INSERT INTO "user" (user_name, phone, join_date\
+                                                     ) VALUES ('{0}', '{1}', '{2}')""".format(phone,
+                                                    phone, time_stamp))
+                result.free()
+            except Exception as e:
+                print "Add user error:{0}".format(e)
+                data = dict()
+                if str(e).find("user_name_key") >= 0:
+                    data = {
+                        "code": "0",
+                        "msg": "User exists."
+                    }
+                else:
+                    data = {
+                        "code": "0",
+                        "msg": "Database error."
+                    }
+                self.set_status(200)
+                self.finish(data)
+                return
+
+            exist_user = yield self.session.query("""SELECT id FROM "user" WHERE phone='{0}'
+                                                    LIMIT 1""".format(phone))
+        if not exist_user:
             self.set_status(200)
-            self.finish({"code": "1", "msg": "success"})
-            result.free()
-        except Exception as e:
-            data = dict()
-            if str(e).find("user_name_key") >= 0:
-                data = {
-                    "code": "0",
-                    "msg": "User exists."
-                }
-            else:
-                data = {
-                    "code": "0",
-                    "msg": "Database error."
-                }
-            self.set_status(200)
-            self.finish(data)
+            self.finish({
+                "code": "0",
+                "msg": "Register user error."
+            })
+            exist_user.free()
+            return
+
+        ssid_config = yield self.session.query("""SELECT id FROM "ssidconfig" WHERE user_id={0}
+                                                LIMIT 1""".format(exist_user[0]['id']))
+        data = {
+            "code": "1",
+            "msg": "success",
+            "content": {}
+        }
+        if not ssid_config:
+            data['content']['has_ssid'] = "no"
+        else:
+            data['content']['has_ssid'] = "yes"
+        self.finish(data)
+        ssid_config.free()
+
+
+class UnregisterHandler(BaseHandler):
+    """
+    """
+    def post(self):
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        if "user_id" not in json_data:
+            self.finish({
+                "code": "0",
+                "msg": "No user_id."
+            })
 
 
 class IndexHandler(tornado.web.RequestHandler):
@@ -85,7 +144,8 @@ class IndexHandler(tornado.web.RequestHandler):
 
 
 url_map = [(r'/', IndexHandler),
-           (r'/user/', UserHandler)
+           (r'/auth/register/v1', RegisterHandler),
+           (r'/auth/unregister/v1', None)
            ]
 
 
