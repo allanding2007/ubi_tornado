@@ -136,6 +136,126 @@ class UnregisterHandler(BaseHandler):
             })
 
 
+class SsidHandler(BaseHandler):
+    """
+    """
+    def get(self, user_id):
+        print user_id
+        self.finish({
+            "code": "1",
+            "msg": "get"
+        })
+
+    @gen.coroutine
+    def post(self):
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        user_id = json_data.get("user_id", None)
+        ssid_name = json_data.get("ssid_name", None)
+        pass_word = json_data.get("pass_word", None)
+        if not user_id or not ssid_name or not pass_word:
+            self.finish({
+                "code": "0",
+                "msg": "No user_id or ssid_name or pass_word."
+            })
+            return
+
+        try:
+            ssid = yield self.session.query("""INSERT INTO "ssidconfig" (user_id, name, pass_word)
+                                            VALUES ('{0}', '{1}', '{2}')""".format(int(user_id),
+                                            ssid_name, pass_word))
+            ssid.free()
+        except Exception as e:
+            print "Add ssid error:{0}".format(e)
+            if str(e).find("name_key") >= 0:
+                data = {
+                    "code": "0",
+                    "msg": "Ssid exists."
+                }
+            else:
+                data = {
+                    "code": "0",
+                    "msg": "Database error."
+                }
+            self.finish(data)
+            return
+
+        user = yield self.session.query("""SELECT id FROM "user" WHERE id='{0}'
+                                        LIMIT 1""".format(int(user_id)))
+        if not user:
+            user.free()
+            self.finish({
+                "code": "0",
+                "msg": "Login failed."
+            })
+            return
+        #login
+        self.finish({
+            "code": "1",
+            "msg": "success",
+            "content": {
+                "user_id": user[0]['id']
+            }
+        })
+        user.free()
+
+
+class EditSsidHander(BaseHandler):
+    """
+    """
+    @gen.coroutine
+    def post(self):
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        user_id = json_data.get("user_id", None)
+        orig_ssid_id = json_data.get("orig_ssid_id", None)
+        ssid_name = json_data.get("ssid_name", None)
+        pass_word = json_data.get("pass_word", None)
+        is_activated = json_data.get("is_activated", None)
+        if not user_id or not orig_ssid_id or not ssid_name \
+            or not pass_word or not is_activated:
+            self.finish({
+                "code": "0",
+                "msg": "Some parameters needed."
+            })
+            return
+
+        ssid = yield self.session.query("""SELECT id FROM "ssidconfig" WHERE id='{0}'
+                                        LIMIT 1""".format(int(orig_ssid_id)))
+        if not ssid:
+            ssid.free()
+            self.finish({
+                "code": "0",
+                "msg": "No ssid."
+            })
+            return
+        is_activated = True if is_activated == "1" else False
+        try:
+            result = yield self.session.query("""UPDATE "ssidconfig" SET name='{0}',
+                                                pass_word='{1}', is_activated='{2}'
+                                                WHERE id='{3}'""".format(ssid_name,
+                                                pass_word, is_activated, int(orig_ssid_id)))
+            result.free()
+        except Exception as e:
+            print "Update ssid error:{0}".format(e)
+            if str(e).find("name_key") >= 0:
+                data = {
+                    "code": "0",
+                    "msg": "Ssid name exists."
+                }
+            else:
+                data = {
+                    "code": "0",
+                    "msg": "Database error."
+                }
+            self.finish(data)
+            return
+        self.finish({
+            "code": "1",
+            "msg": "success"
+        })
+
+
 class IndexHandler(tornado.web.RequestHandler):
     """
     """
@@ -145,7 +265,10 @@ class IndexHandler(tornado.web.RequestHandler):
 
 url_map = [(r'/', IndexHandler),
            (r'/auth/register/v1', RegisterHandler),
-           (r'/auth/unregister/v1', None)
+           (r'/auth/unregister/v1', None),
+           (r'/ssid/add/v1', SsidHandler),
+           (r'/ssid/get/(?P<user_id>[0-9]+)/v1', SsidHandler),
+           (r'/ssid/edit/v1', EditSsidHander)
            ]
 
 
