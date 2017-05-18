@@ -44,7 +44,8 @@ class UserHandler(BaseHandler):
         phone = json_data.get("phone", None)
         is_activated = json_data.get("is_activated", None)
         if not phone or not is_activated:
-            self.write({
+            self.set_status(200)
+            self.finish({
                 "code": "0",
                 "msg": "Need phone or is_activated."
             })
@@ -54,10 +55,11 @@ class UserHandler(BaseHandler):
             user_name = phone
         time_stamp = datetime.datetime.utcnow()
         try:
-            result = yield self.session.query("""INSERT INTO "user" (name, phone, join_date, \
+            result = yield self.session.query("""INSERT INTO "user" (user_name, phone, join_date, \
                                               is_activated) VALUES ('{0}', '{1}', '{2}', '{3}')"""\
                                               .format(user_name, phone, time_stamp, is_activated))
-            self.write({"code": "1", "msg": "success"})
+            self.set_status(200)
+            self.finish({"code": "1", "msg": "success"})
             result.free()
         except Exception as e:
             data = dict()
@@ -71,9 +73,8 @@ class UserHandler(BaseHandler):
                     "code": "0",
                     "msg": "Database error."
                 }
-            self.write(data)
-
-        self.finish()
+            self.set_status(200)
+            self.finish(data)
 
 
 class IndexHandler(tornado.web.RequestHandler):
@@ -83,11 +84,14 @@ class IndexHandler(tornado.web.RequestHandler):
         self.render("index.html")
 
 
+url_map = [(r'/', IndexHandler),
+           (r'/user/', UserHandler)
+           ]
+
+
 if __name__ == "__main__":
     tornado.options.parse_command_line()
-    app = tornado.web.Application(handlers=[(r'/', IndexHandler),
-                                            (r'/user/', UserHandler),
-                                            ],
+    app = tornado.web.Application(handlers=url_map,
                                   template_path=os.path.join(os.path.dirname(__file__),
                                                              "templates"),
                                   debug=config.DEBUG)
