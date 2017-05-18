@@ -354,7 +354,46 @@ class DeviceHandle(BaseHandler):
 
     @gen.coroutine
     def post(self):
-        pass
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        description = json_data.get("description", "")
+        mac_address = json_data.get("mac_address", None)
+        is_activated = json_data.get("is_activated", "1")
+        user_id = json_data.get("user_id", None)
+        if not user_id or not mac_address:
+            self.finish({
+                "code": "0",
+                "msg": "No user_id or mac_address."
+            })
+            return
+
+        mac_address = mac_address.lower()
+        is_activated = True if is_activated == "1" else False
+        join_date = datetime.datetime.utcnow()
+        try:
+            result = yield self.session.query("""INSERT INTO "device" (user_id,\
+                                                mac_address, description, is_activated,\
+                                                join_date) VALUES ('{0}', '{1}', '{2}',\
+                                                '{3}', '{4}')""".format(int(user_id, mac_address,
+                                                description, is_activated, join_date)))
+            result.free()
+        except Exception as e:
+            print "Add device error:{0}".format(e)
+            data = {
+                "code": "0"
+            }
+            if str(e).find("mac_address_key") >= 0:
+                data['msg'] = "Mac address exists."
+            else:
+                data['msg'] = "Database error."
+            self.finish(data)
+            return
+
+        self.finish({
+            "code": "1",
+            "msg": "success"
+        })
+
 
 
 class PerDeviceHandler(BaseHandler):
