@@ -139,12 +139,26 @@ class UnregisterHandler(BaseHandler):
 class SsidHandler(BaseHandler):
     """
     """
+    @gen.coroutine
     def get(self, user_id):
         print user_id
-        self.finish({
+        ssid = yield self.session.query("""SELECT id,name,pass_word,is_activated FROM "ssidconfig"
+                                        WHERE user_id='{0}' LIMIT 1""".format(int(user_id)))
+        data = {
             "code": "1",
-            "msg": "get"
-        })
+            "msg": "success",
+        }
+        if not ssid:
+            data['content'] = None
+        else:
+            data['content'] = {
+                "ssid_name": ssid[0]['name'],
+                "id": ssid[0]['id'],
+                "pass_word": ssid[0]['pass_word'],
+                "is_activated": "1" if ssid[0]['is_activated'] else "0"
+            }
+        self.finish(data)
+        ssid.free()
 
     @gen.coroutine
     def post(self):
@@ -256,6 +270,81 @@ class EditSsidHander(BaseHandler):
         })
 
 
+class ProfileHandle(BaseHandler):
+    """
+    """
+    @gen.coroutine
+    def get(self, user_id):
+        print user_id
+        user = yield self.session.query("""SELECT id,user_name,phone,join_date,email
+                                        FROM "user" WHERE id='{0}' LIMIT 1"""\
+                                        .format(int(user_id)))
+        data = {
+            "code": "1",
+            "msg": "success"
+        }
+        if not user:
+            data['content'] = None
+        else:
+            data['content'] = {
+                "user_id": user[0]['id'],
+                "user_name": user[0]['user_name'],
+                "phone": user[0]['phone'],
+                "email": user[0]['email']
+            }
+        self.finish(data)
+        user.free()
+
+    @gen.coroutine
+    def post(self):
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        user_id = json_data.get("user_id", None)
+        user_name = json_data.get("user_name", "")
+        email = json_data.get("email", "")
+        if not user_id:
+            self.finish({
+                "code": "0",
+                "msg": "Need user_id."
+            })
+            return
+
+        user = yield self.session.query("""SELECT id FROM "user" WHERE id='{0}'
+                                        LIMIT 1""".format(int(user_id)))
+        if not user:
+            user.free()
+            self.set_status(404)
+            self.finish({
+                "code": "0",
+                "msg": "No user."
+            })
+            return
+
+        try:
+            result = yield self.session.query("""UPDATE "user" SET user_name='{0}',
+                                                email='{1}' WHERE id='{2}'"""\
+                                                .format(user_name, email, int(user_id)))
+            result.free()
+        except Exception as e:
+            print "Update user error:{0}".format(e)
+            data = {
+                "code": "0",
+            }
+            if str(e).find("name_key") >= 0:
+                data['msg'] = "User name exists."
+            elif str(e).find("email_key") >= 0:
+                data['msg'] = "Email exists."
+            else:
+                data['msg'] = "Database error."
+            self.finish(data)
+            return
+
+        self.finish({
+            "code": "1",
+            "msg": "success"
+        })
+
+
 class IndexHandler(tornado.web.RequestHandler):
     """
     """
@@ -268,7 +357,9 @@ url_map = [(r'/', IndexHandler),
            (r'/auth/unregister/v1', None),
            (r'/ssid/add/v1', SsidHandler),
            (r'/ssid/get/(?P<user_id>[0-9]+)/v1', SsidHandler),
-           (r'/ssid/edit/v1', EditSsidHander)
+           (r'/ssid/edit/v1', EditSsidHander),
+           (r'/profile/get/(?P<user_id>[0-9]+)/v1', ProfileHandle),
+           (r'/profile/edit/v1', ProfileHandle)
            ]
 
 
