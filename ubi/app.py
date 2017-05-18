@@ -345,6 +345,30 @@ class ProfileHandle(BaseHandler):
         })
 
 
+class DeviceHandle(BaseHandler):
+    """
+    """
+    @gen.coroutine
+    def get(self, user_id, page, size):
+        pass
+
+    @gen.coroutine
+    def post(self):
+        pass
+
+
+class PerDeviceHandler(BaseHandler):
+    """
+    """
+    @gen.coroutine
+    def get(self, user_id, device_id):
+        pass
+
+    @gen.coroutine
+    def post(self):
+        pass
+
+
 class IndexHandler(tornado.web.RequestHandler):
     """
     """
@@ -359,7 +383,13 @@ url_map = [(r'/', IndexHandler),
            (r'/ssid/get/(?P<user_id>[0-9]+)/v1', SsidHandler),
            (r'/ssid/edit/v1', EditSsidHander),
            (r'/profile/get/(?P<user_id>[0-9]+)/v1', ProfileHandle),
-           (r'/profile/edit/v1', ProfileHandle)
+           (r'/profile/edit/v1', ProfileHandle),
+           (r'/devices/device/add/v1', DeviceHandle),
+           (r'/devices/get/(?P<user_id>[0-9]+)/(?P<page>[0-9]+)/(?P<size>[0-9])+/v1',
+            DeviceHandle),
+           (r'/devices/device/delete/v1', PerDeviceHandler),
+           (r'/devices/device/get/(?P<user_id>[0-9]+)/(?P<device_id>)/v1',
+            PerDeviceHandler)
            ]
 
 
