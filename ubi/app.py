@@ -349,12 +349,81 @@ class DeviceHandle(BaseHandler):
     """
     """
     @gen.coroutine
-    def get(self, user_id, page, size):
-        pass
+    def get(self, user_id, page=1, size=5):
+        if int(user_id) <= 0:
+            self.finish({
+                "code": "0",
+                "msg": "User_id error."
+            })
+            return
+
+        off_set = int(page) - 1
+        devices = yield self.session.query("""SELECT id, mac_address, manufacturer,
+                                            description, is_activated, join_date
+                                            FROM "device" WHERE user_id='{0}' LIMIT
+                                             '{1}' OFFSET '{2}'""".format(int(user_id),
+                                            int(size), off_set))
+        devices_list = list()
+        if devices:
+            devices_list = map(lambda dev: {"id": dev['id'],
+                                            "mac_address": dev['mac_address'].upper(),
+                                            "manufacturer": dev['manufacturer'],
+                                            "is_activated": "1" if dev['is_activated'] else "0",
+                                            "join_date": dev['join_date'].strftime("%Y-%m-%d %H:%M:%S"),
+                                            "description": dev['description']
+                                            },
+                               devices)
+        else:
+            devices_list = []
+
+        self.finish({
+            "code": "1",
+            "msg": "success",
+            "content": devices_list
+        })
+        devices.free()
 
     @gen.coroutine
     def post(self):
-        pass
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        description = json_data.get("description", "")
+        mac_address = json_data.get("mac_address", None)
+        is_activated = json_data.get("is_activated", "1")
+        user_id = json_data.get("user_id", None)
+        if not user_id or not mac_address:
+            self.finish({
+                "code": "0",
+                "msg": "No user_id or mac_address."
+            })
+            return
+
+        mac_address = mac_address.lower()
+        is_activated = True if is_activated == "1" else False
+        join_date = datetime.datetime.utcnow()
+        try:
+            result = yield self.session.query("""INSERT INTO "device" (user_id,\
+                                                mac_address, description, is_activated,\
+                                                join_date) VALUES ('{0}', '{1}', '{2}',\
+                                                '{3}', '{4}')""".format(int(user_id), mac_address,
+                                                description, is_activated, join_date))
+            result.free()
+        except Exception as e:
+            print "Add device error:{0}".format(e)
+            data = {
+                "code": "0"
+            }
+            if str(e).find("mac_address_key") >= 0:
+                data['msg'] = "Mac address exists."
+            else:
+                data['msg'] = "Database error."
+            self.finish(data)
+            return
+
+        self.finish({
+            "code": "1",
+            "msg": "success"
+        })
 
 
 class PerDeviceHandler(BaseHandler):
@@ -362,11 +431,139 @@ class PerDeviceHandler(BaseHandler):
     """
     @gen.coroutine
     def get(self, user_id, device_id):
-        pass
+        if int(device_id) <= 0 or \
+            int(user_id) <= 0:
+            self.finish({
+                "code": "0",
+                "msg": "User_id or device_id error."
+            })
+            return
+
+        device = yield self.session.query("""SELECT id, mac_address, description,
+                                            manufacturer, is_activated, join_date
+                                            FROM "device" WHERE id='{0}'""".format(
+                                            int(device_id)))
+
+        if not device:
+            device.free()
+            self.set_status(404)
+            self.finish({
+                "code": "0",
+                "msg": "No device found."
+            })
+            return
+
+        self.finish({
+            "code": "1",
+            "msg": "success",
+            "contend": {
+                "id": device[0]['id'],
+                "mac_address": device[0]['mac_address'],
+                "description": device[0]['description'],
+                "is_activated": "1" if device[0]['is_activated'] else "0",
+                "manufacturer": device[0]['manufacturer'],
+                "join_date": device[0]['join_date'].strftime("%Y-%m-%d %H:%M:%S")
+            }
+        })
+        device.free()
 
     @gen.coroutine
     def post(self):
-        pass
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        description = json_data.get("description", "")
+        mac_address = json_data.get("mac_address", None)
+        is_activated = json_data.get("is_activated", "1")
+        user_id = json_data.get("user_id", None)
+        device_id = json_data.get("device_id", None)
+        if not user_id or not mac_address or \
+                not device_id:
+            self.finish({
+                "code": "0",
+                "msg": "No user_id or mac_address or device_id."
+            })
+            return
+
+        mac_address = mac_address.lower()
+        is_activated = True if is_activated == "1" else False
+        try:
+            result = yield self.session.query("""UPDATE "device" SET mac_address='{0}',
+                                                description='{1}', is_activated='{2}'
+                                                WHERE id='{3}'""".format(mac_address,
+                                                description, is_activated, int(device_id)))
+            result.free()
+        except Exception as e:
+            print "Edit device error:{0}".format(e)
+            data = {
+                "code": "0"
+            }
+            if str(e).find("mac_address_key") >= 0:
+                data['msg'] = "Mac address exists."
+            else:
+                data['msg'] = "Database error."
+            self.finish(data)
+            return
+
+        self.finish({
+            "code": "1",
+            "msg": "success"
+        })
+
+
+class DeleteDeviceHandler(BaseHandler):
+    """
+    """
+    @gen.coroutine
+    def post(self):
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        device_id = json_data.get("device_id", None)
+        user_id = json_data.get("user_id", None)
+        if not user_id or not device_id:
+            self.finish({
+                "code": "0",
+                "msg": "No user_id or device_id"
+            })
+            return
+
+        try:
+            result = yield self.session.query("""DELETE FROM "device" WHERE
+                                                id='{0}'""".format(int(device_id)))
+            result.free()
+        except Exception as e:
+            print "Delete device error:{0}".format(e)
+            self.finish({
+                "code": "0",
+                "msg": "Database error."
+            })
+            return
+
+        self.finish({
+            "code": "1",
+            "msg": "success"
+        })
+
+
+class DeviceStatsHandler(BaseHandler):
+    """
+    """
+    def get(self, user_id, page, size):
+        self.finish({
+            "code": "1",
+            "msg": "success",
+            "content": "Device statistics."
+        })
+
+
+class PerDeviceStatsHandler(BaseHandler):
+    """
+    """
+    def get(self, user_id, device_id, page, size):
+        self.finish({
+            "code": "1",
+            "msg": "success",
+            "content": "Per device statistics."
+        })
 
 
 class IndexHandler(tornado.web.RequestHandler):
@@ -387,9 +584,14 @@ url_map = [(r'/', IndexHandler),
            (r'/devices/device/add/v1', DeviceHandle),
            (r'/devices/get/(?P<user_id>[0-9]+)/(?P<page>[0-9]+)/(?P<size>[0-9])+/v1',
             DeviceHandle),
-           (r'/devices/device/delete/v1', PerDeviceHandler),
-           (r'/devices/device/get/(?P<user_id>[0-9]+)/(?P<device_id>)/v1',
-            PerDeviceHandler)
+           (r'/devices/device/edit/v1', PerDeviceHandler),
+           (r'/devices/device/get/(?P<user_id>[0-9]+)/(?P<device_id>[0-9]+)/v1',
+            PerDeviceHandler),
+           (r'/devices/device/delete/v1', DeleteDeviceHandler),
+           (r'/statistics/devices/(?P<user_id>[0-9]+)/(?P<page>)[0-9]+/(?P<size>)[0-9]+/v1',
+            DeviceStatsHandler),
+           (r'/statistics/device/(?P<user_id>[0-9]+)/(?P<device_id>[0-9]+)/(?P<page>)[0-9]+/(?P<size>)[0-9]+/v1',
+            PerDeviceStatsHandler)
            ]
 
 

@@ -5,5 +5,5 @@
 # directory /misc_tools/database. Before beging
 # this project, creates database and create the
 # table you cloud use. How to execute sql file: 
-# psql locahost -U postgres -d to_ubiwifi -a -f 
-# user.sql
+# psql -h localhost -U postgres -d to_ubiwifi 
+# -a -f xx.sql
