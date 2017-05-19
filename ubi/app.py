@@ -510,6 +510,40 @@ class PerDeviceHandler(BaseHandler):
         })
 
 
+class DeleteDeviceHandler(BaseHandler):
+    """
+    """
+    @gen.coroutine
+    def post(self):
+        print self.request.body
+        json_data = json.loads(self.request.body)
+        device_id = json_data.get("device_id", None)
+        user_id = json_data.get("user_id", None)
+        if not user_id or not device_id:
+            self.finish({
+                "code": "0",
+                "msg": "No user_id or device_id"
+            })
+            return
+
+        try:
+            result = yield self.session.query("""DELETE FROM "device" WHERE
+                                                id='{0}'""".format(int(device_id)))
+            result.free()
+        except Exception as e:
+            print "Delete device error:{0}".format(e)
+            self.finish({
+                "code": "0",
+                "msg": "Database error."
+            })
+            return
+
+        self.finish({
+            "code": "1",
+            "msg": "success"
+        })
+
+
 class IndexHandler(tornado.web.RequestHandler):
     """
     """
@@ -530,7 +564,8 @@ url_map = [(r'/', IndexHandler),
             DeviceHandle),
            (r'/devices/device/edit/v1', PerDeviceHandler),
            (r'/devices/device/get/(?P<user_id>[0-9]+)/(?P<device_id>[0-9]+)/v1',
-            PerDeviceHandler)
+            PerDeviceHandler),
+           (r'/devices/device/delete/v1', DeleteDeviceHandler)
            ]
 
 
