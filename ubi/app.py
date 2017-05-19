@@ -544,6 +544,28 @@ class DeleteDeviceHandler(BaseHandler):
         })
 
 
+class DeviceStatsHandler(BaseHandler):
+    """
+    """
+    def get(self, user_id, page, size):
+        self.finish({
+            "code": "1",
+            "msg": "success",
+            "content": "Device statistics."
+        })
+
+
+class PerDeviceStatsHandler(BaseHandler):
+    """
+    """
+    def get(self, user_id, device_id, page, size):
+        self.finish({
+            "code": "1",
+            "msg": "success",
+            "content": "Per device statistics."
+        })
+
+
 class IndexHandler(tornado.web.RequestHandler):
     """
     """
@@ -565,7 +587,11 @@ url_map = [(r'/', IndexHandler),
            (r'/devices/device/edit/v1', PerDeviceHandler),
            (r'/devices/device/get/(?P<user_id>[0-9]+)/(?P<device_id>[0-9]+)/v1',
             PerDeviceHandler),
-           (r'/devices/device/delete/v1', DeleteDeviceHandler)
+           (r'/devices/device/delete/v1', DeleteDeviceHandler),
+           (r'/statistics/devices/(?P<user_id>[0-9]+)/(?P<page>)[0-9]+/(?P<size>)[0-9]+/v1',
+            DeviceStatsHandler),
+           (r'/statistics/device/(?P<user_id>[0-9]+)/(?P<device_id>[0-9]+)/(?P<page>)[0-9]+/(?P<size>)[0-9]+/v1',
+            PerDeviceStatsHandler)
            ]
 
 
